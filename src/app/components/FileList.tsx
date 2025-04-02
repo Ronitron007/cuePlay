@@ -224,21 +224,21 @@ const FileList: React.FC = () => {
     }
   }, [filteredFiles, currentFileId])
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (filteredFiles.length === 0) return
     
     const currentIndex = currentFileInfo.index
     const newIndex = currentIndex <= 0 ? filteredFiles.length - 1 : currentIndex - 1
     setCurrentFileId(filteredFiles[newIndex].id)
-  }
+  }, [filteredFiles, currentFileInfo.index, setCurrentFileId])
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (filteredFiles.length === 0) return
     
     const currentIndex = currentFileInfo.index
     const newIndex = currentIndex >= filteredFiles.length - 1 ? 0 : currentIndex + 1
     setCurrentFileId(filteredFiles[newIndex].id)
-  }
+  }, [filteredFiles, currentFileInfo, setCurrentFileId])
 
   // Handle clicking on a file
   const handleFileClick = (fileId: string) => {
@@ -271,16 +271,24 @@ const FileList: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      let handlerCallback
       if (event.key === 'ArrowLeft') {
-        handlePrevious()
+        handlerCallback = handlePrevious
       } else if (event.key === 'ArrowRight') {
-        handleNext()
+        handlerCallback = handleNext
+      } else if (event.key === 'ArrowUp') {
+        handlerCallback = handlePrevious
+      } else if (event.key === 'ArrowDown') {
+        handlerCallback = handleNext
+      } 
+      if (handlerCallback) {
+        handlerCallback()
       }
     }
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [handlePrevious, handleNext])
 
 
   const fetchSpotifyMetadata = async (file: AudioFile) => {
@@ -359,7 +367,7 @@ const FileList: React.FC = () => {
       if (viewMode === 'table' && selectedRowRef.current) {
         // Use scrollIntoView with options for smooth scrolling
         selectedRowRef.current.scrollIntoView({
-          behavior: 'smooth',
+          behavior: 'instant',
           block: 'center'
         });
       }
@@ -735,6 +743,7 @@ const FileList: React.FC = () => {
               handleTableRowClick={handleTableRowClick}
               fetchSpotifyMetadata={fetchSpotifyMetadata}
               spotifyTokens={spotifyTokens}
+              selectedRowRef={selectedRowRef}
             />
           )}
           

@@ -24,6 +24,7 @@ interface TrackTableProps {
   handleTableRowClick: (fileId: string, file: any) => void
   fetchSpotifyMetadata: (file: any) => void
   spotifyTokens: SpotifyTokens
+  selectedRowRef: React.RefObject<HTMLTableRowElement>
 }
 
 const TrackTable: React.FC<TrackTableProps> = ({
@@ -31,11 +32,10 @@ const TrackTable: React.FC<TrackTableProps> = ({
   currentFileId,
   handleTableRowClick,
   fetchSpotifyMetadata,
-  spotifyTokens
+  spotifyTokens,
+  selectedRowRef
 }) => {
   const theme = useTheme()
-  // Add a ref for the selected table row
-  const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
 
   // Format duration (if available)
   const formatDuration = (seconds: number) => {
