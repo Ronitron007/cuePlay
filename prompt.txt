@@ -1,0 +1,7 @@
+Given below are the file Locations for your reference,
+FILE LOCATIONS:
+/Users/rohanmalik/Projects/cuePlay/src/app/context/AppContext.tsx
+/Users/rohanmalik/Projects/cuePlay/src/app/components/FileList.tsx. 
+Your goals is to go through the files and create a new hook that creates a separation of concerns for all 
+--- A small descritipn of the hook ----
+spotify related functionality. 

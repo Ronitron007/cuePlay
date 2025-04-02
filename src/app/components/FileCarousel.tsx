@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { SpotifyTokens } from '../hooks/useSpotify'
 import { 
   Box, 
   Typography, 
@@ -40,7 +41,7 @@ export interface FileCarouselProps {
   handleNext: () => void;
   handleFileClick: (fileId: string) => void;
   fetchSpotifyMetadata: (file: FileWithMetadata) => void;
-  spotifyTokens: any; // Update with proper type if available
+  spotifyTokens: SpotifyTokens;
 }
 
 const FileCarousel: React.FC<FileCarouselProps> = ({ 

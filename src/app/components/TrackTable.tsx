@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useRef } from 'react'
+import { SpotifyTokens } from '../hooks/useSpotify'
 import { 
   Table, 
   TableBody, 
@@ -22,7 +23,7 @@ interface TrackTableProps {
   currentFileId: string | null
   handleTableRowClick: (fileId: string, file: any) => void
   fetchSpotifyMetadata: (file: any) => void
-  spotifyTokens: any
+  spotifyTokens: SpotifyTokens
 }
 
 const TrackTable: React.FC<TrackTableProps> = ({

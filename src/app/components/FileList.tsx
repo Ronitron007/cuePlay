@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { AudioFile, useAppContext } from '../context/AppContext'
+import { useSpotify } from '../hooks/useSpotify'
 import { 
   Box, 
   Card, 
@@ -58,7 +59,8 @@ type SortDirection = 'asc' | 'desc';
 
 
 const FileList: React.FC = () => {
-  const { audioFiles, setAudioFiles, spotifyTokens } = useAppContext()
+  const { audioFiles, setAudioFiles } = useAppContext()
+  const { spotifyTokens, fetchSpotifyMetadata: spotifyFetchMetadata, isLoading: spotifyIsLoading } = useSpotify()
   const [currentFileId, setCurrentFileId] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [tempoRange, setTempoRange] = useState<[number, number]>([0, 300])
@@ -287,133 +289,13 @@ const FileList: React.FC = () => {
       return
     }
     
-    try {
-      // Create a search query based on available metadata
-      const editInfoSplit = (file?.metadata?.title || '').split("[")
-      const titleSplit = (editInfoSplit[0]).split("(feat.") 
-      const title = titleSplit[0] + (editInfoSplit.length > 1 ? (" - " + editInfoSplit[1].replace("]","")): "")
-      const artist = (file?.metadata?.artist || '') + (titleSplit.length > 1 ? (", " + titleSplit[1].replace(")", "")) : '')
-      let searchQuery = ''
-      
-      if (title && artist) {
-        searchQuery = `track:${title} artist:${artist}`
-      } else if (title) {
-        searchQuery = `track:${title}`
-      } else if (artist) {
-        searchQuery = `artist:${artist}`
-      } else {
-        // Try to extract info from filename
-        const filename = file.name.replace(/\.[^/.]+$/, "") // Remove extension
-        searchQuery = filename
-      }
-      
-      // Include original title and artist for similarity scoring
-      const queryParams = new URLSearchParams({
-        q: searchQuery
-      })
-      
-      if (title) queryParams.append('title', title)
-      if (artist) queryParams.append('artist', artist)
-      
-      const response = await fetch(`/api/spotify/search?${queryParams.toString()}`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch from Spotify')
-      }
-      
-      const data = await response.json()
-      console.log(data, "data from spotify")
-      let setTrack = false
-      
-      if (data.tracks && data.tracks.items && data.tracks.items.length > 0) {
-        // Get the best match
-        const track = data.tracks.items[0]
-        
-        // Check if the match score is good enough (if available)
-        const matchThreshold = 0.6 // Adjust this threshold as needed
-        if (track.matchScore !== undefined && track.matchScore < matchThreshold) {
-          // If we have multiple results, show a confirmation with the top match
-          if (confirm(`Best match: "${track.name}" by ${track.artists.map((a: {name: string}) => a.name).join(', ')}...`)) {
-            setTrack = true
-          } else {
-            alert('No matching tracks found on Spotify')
-            return
-          }
-        } else {
-          setTrack = true
-        }
-        
-        // Update the file with Spotify metadata
-        if (setTrack) {
-          // First update with basic track info
-          setAudioFiles((prevFiles: AudioFile[]) => {
-            return prevFiles.map((f: AudioFile) => {
-              if (f.id === file.id) {
-                return {
-                  ...f,
-                  metadata: {
-                    ...f.metadata,
-                    title: track.name,
-                    artist: track.artists.map((a: {name: string}) => a.name).join(', '),
-                    album: track.album.name,
-                    spotifyId: track.id,
-                    spotifyUri: track.uri,
-                    spotifyUrl: track.external_urls.spotify,
-                    spotifyAlbumArt: track.album.images[0]?.url || f.metadata?.picture,
-                    // Keep existing tempo if available
-                    tempo: f.metadata?.tempo || null
-                  }
-                }
-              }
-              return f
-            })
-          })
-          
-          // Then fetch audio features
-          try {
-            const featuresResponse = await fetch(`/api/spotify/audio-features/${track.id}`)
-            if (!featuresResponse.ok) {
-              throw new Error('Failed to fetch audio features')
-            }
-            
-            const features = await featuresResponse.json()
-            
-            // Update with audio features
-            setAudioFiles((prevFiles: AudioFile[]) => {
-              return prevFiles.map((f: AudioFile) => {
-                if (f.id === file.id) {
-                  return {
-                    ...f,
-                    metadata: {
-                      ...f.metadata,
-                      // Only override tempo if we don't already have it
-                      tempo: f.metadata?.tempo || Math.round(features.tempo),
-                      key: features.key,
-                      mode: features.mode,
-                      timeSignature: features.time_signature,
-                      danceability: features.danceability,
-                      energy: features.energy,
-                      acousticness: features.acousticness,
-                      instrumentalness: features.instrumentalness,
-                      liveness: features.liveness,
-                      valence: features.valence
-                    }
-                  }
-                }
-                return f
-              })
-            })
-          } catch (error) {
-            console.error('Error fetching audio features:', error)
-            // We already updated with basic info, so just log the error
-          }
-        }
-      } else {
-        alert('No matching tracks found on Spotify')
-      }
-    } catch (error) {
-      console.error('Error fetching Spotify metadata:', error)
-      alert('Error fetching Spotify metadata')
+    const updatedFile = await spotifyFetchMetadata(file)
+    if (updatedFile) {
+      setAudioFiles((prevFiles: AudioFile[]) => 
+        prevFiles.map((f: AudioFile) => 
+          f.id === updatedFile.id ? updatedFile : f
+        )
+      )
     }
   }
 
