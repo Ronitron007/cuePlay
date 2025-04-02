@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { useAppContext } from '../context/AppContext'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { AudioFile, useAppContext } from '../context/AppContext'
 import { 
   Box, 
   Card, 
@@ -31,8 +31,6 @@ import {
   Tooltip
 } from '@mui/material'
 import { 
-  KeyboardArrowLeft, 
-  KeyboardArrowRight, 
   Search, 
   Clear, 
   Speed, 
@@ -45,19 +43,24 @@ import {
   ChevronLeft,
   ChevronRight,
   ViewCarousel,
-  ViewList,
-  OpenInNew
+  ViewList
 } from '@mui/icons-material'
+import FileCarousel from './FileCarousel'
+import TrackTable from './TrackTable'
 import Fuse from 'fuse.js'
+import { useDebounce } from 'use-debounce'
 
 // Add these types and state variables after the other state declarations
 type SortKey = 'key' | 'tempo' | 'title' | 'duration' | 'artist';
 type SortDirection = 'asc' | 'desc';
 
+// Add appropriate type for your audio file
+
+
 const FileList: React.FC = () => {
   const { audioFiles, setAudioFiles, spotifyTokens } = useAppContext()
   const [currentFileId, setCurrentFileId] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [tempoRange, setTempoRange] = useState<[number, number]>([0, 300])
   const [showFilters, setShowFilters] = useState(false)
   const [includeFilesWithoutTempo, setIncludeFilesWithoutTempo] = useState(true)
@@ -67,27 +70,29 @@ const FileList: React.FC = () => {
   const [secondarySortDirection, setSecondarySortDirection] = useState<SortDirection>('asc');
   const [viewMode, setViewMode] = useState<'carousel' | 'table'>('carousel');
   const theme = useTheme()
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [debouncedSearch] = useDebounce(searchInput, 300);
 
-  // Generate unique IDs for files if they don't have one
   useEffect(() => {
     if (audioFiles.some(file => !file.id)) {
-      setAudioFiles(prevFiles => 
-        prevFiles.map(file => ({
+      setAudioFiles((prevFiles: AudioFile[]) => 
+        prevFiles.map((file: AudioFile) => ({
           ...file,
           id: file.id || `file-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`
         }))
-      )
+      );
     }
   }, [audioFiles, setAudioFiles])
 
-  // Set initial current file when files load
+
   useEffect(() => {
     if (audioFiles.length > 0 && !currentFileId) {
       setCurrentFileId(audioFiles[0].id)
     }
   }, [audioFiles, currentFileId])
 
-  // Calculate tempo limits from all files
+
   const tempoLimits = useMemo(() => {
     const tempos = audioFiles
       .map(file => file?.metadata?.tempo)
@@ -99,16 +104,16 @@ const FileList: React.FC = () => {
     }
   }, [audioFiles])
 
-  // Tempo filter state
+
   useEffect(() => {
     setTempoRange([tempoLimits.min, tempoLimits.max])
   }, [tempoLimits])
 
-  // Add this function to handle sorting
-  const getSortedFiles = (files: typeof audioFiles) => {
+
+  const getSortedFiles = useCallback((files: AudioFile[]) => {
     return [...files].sort((a, b) => {
       // Helper function to get sort value based on key
-      const getSortValue = (file: typeof audioFiles[0], sortKey: SortKey) => {
+      const getSortValue = (file: AudioFile, sortKey: SortKey) => {
         switch (sortKey) {
           case 'key':
             // Extract numeric part for proper numeric sorting
@@ -154,12 +159,11 @@ const FileList: React.FC = () => {
       // If both are equal, sort by name as final tiebreaker
       return (a?.name || '').localeCompare(b?.name || '');
     });
-  };
+  }, [primarySort, secondarySort, primarySortDirection, secondarySortDirection]);
 
-  // Modify the filteredFiles useMemo to include sorting
-  const filteredFiles = useMemo(() => {
-    // First filter by tempo
-    const tempoFiltered = audioFiles.filter(file => {
+  const filterFiles = useCallback((files: AudioFile[]) => {
+    // Filter by tempo
+    return files.filter(file => {
       const tempo = file?.metadata?.tempo;
       
       // Handle files without tempo data based on checkbox
@@ -170,37 +174,30 @@ const FileList: React.FC = () => {
       // Filter files with tempo data by range
       return tempo >= tempoRange[0] && tempo <= tempoRange[1];
     });
+  }, [tempoRange, includeFilesWithoutTempo]);
+
+  const filteredFiles = useMemo(() => {
+    // First apply filter
+    const tempoFiltered = filterFiles(audioFiles);
     
-    // Then apply text search if needed
-    let searchFiltered = tempoFiltered;
-    if (searchQuery.trim()) {
-      const fuseInstance = new Fuse(tempoFiltered, {
-        keys: [
-          'name',
-          'metadata.title',
-          'metadata.artist',
-          'metadata.album'
-        ],
-        threshold: 0.4,
-        includeScore: true
-      });
-      
-      const results = fuseInstance.search(searchQuery);
-      searchFiltered = results.map(result => result.item);
-    }
+    // Then apply search only if needed
+    if (!debouncedSearch.trim()) return getSortedFiles(tempoFiltered);
     
-    // Finally, apply sorting
-    return getSortedFiles(searchFiltered);
-  }, [
-    audioFiles, 
-    searchQuery, 
-    tempoRange, 
-    includeFilesWithoutTempo, 
-    primarySort, 
-    secondarySort, 
-    primarySortDirection, 
-    secondarySortDirection
-  ]);
+    // Search logic with Fuse.js
+    const fuseInstance = new Fuse(tempoFiltered, {
+      keys: [
+        'name',
+        'metadata.title',
+        'metadata.artist',
+        'metadata.album'
+      ],
+      threshold: 0.4,
+      includeScore: true
+    });
+    
+    const results = fuseInstance.search(debouncedSearch);
+    return getSortedFiles(results.map(result => result.item));
+  }, [audioFiles, debouncedSearch, filterFiles, getSortedFiles]);
 
   // Reset current file when filtered files change
   useEffect(() => {
@@ -249,27 +246,27 @@ const FileList: React.FC = () => {
 
   // Clear search
   const handleClearSearch = () => {
-    setSearchQuery('')
+    setSearchInput('')
   }
 
-  // Handle tempo range change
+
   const handleTempoChange = (event: Event, newValue: number | number[]) => {
     setTempoRange(newValue as [number, number])
   }
 
-  // Reset all filters
+
   const handleResetFilters = () => {
-    setSearchQuery('')
+    setSearchInput('')
     setTempoRange([tempoLimits.min, tempoLimits.max])
     setIncludeFilesWithoutTempo(true)
   }
 
-  // Toggle filters visibility
+
   const toggleFilters = () => {
     setShowFilters(prev => !prev)
   }
 
-  // Setup keyboard navigation
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft') {
@@ -283,8 +280,8 @@ const FileList: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Function to fetch metadata from Spotify
-  const fetchSpotifyMetadata = async (file) => {
+
+  const fetchSpotifyMetadata = async (file: AudioFile) => {
     if (!spotifyTokens) {
       alert('Please connect to Spotify first')
       return
@@ -336,7 +333,7 @@ const FileList: React.FC = () => {
         const matchThreshold = 0.6 // Adjust this threshold as needed
         if (track.matchScore !== undefined && track.matchScore < matchThreshold) {
           // If we have multiple results, show a confirmation with the top match
-          if (confirm(`Best match: "${track.name}" by ${track.artists.map(a => a.name).join(', ')}\nConfidence: ${Math.round(track.matchScore * 100)}%\n\nUse this result?`)) {
+          if (confirm(`Best match: "${track.name}" by ${track.artists.map((a: {name: string}) => a.name).join(', ')}...`)) {
             setTrack = true
           } else {
             alert('No matching tracks found on Spotify')
@@ -349,15 +346,15 @@ const FileList: React.FC = () => {
         // Update the file with Spotify metadata
         if (setTrack) {
           // First update with basic track info
-          setAudioFiles(prevFiles => {
-            return prevFiles.map(f => {
+          setAudioFiles((prevFiles: AudioFile[]) => {
+            return prevFiles.map((f: AudioFile) => {
               if (f.id === file.id) {
                 return {
                   ...f,
                   metadata: {
                     ...f.metadata,
                     title: track.name,
-                    artist: track.artists.map(a => a.name).join(', '),
+                    artist: track.artists.map((a: {name: string}) => a.name).join(', '),
                     album: track.album.name,
                     spotifyId: track.id,
                     spotifyUri: track.uri,
@@ -382,8 +379,8 @@ const FileList: React.FC = () => {
             const features = await featuresResponse.json()
             
             // Update with audio features
-            setAudioFiles(prevFiles => {
-              return prevFiles.map(f => {
+            setAudioFiles((prevFiles: AudioFile[]) => {
+              return prevFiles.map((f: AudioFile) => {
                 if (f.id === file.id) {
                   return {
                     ...f,
@@ -420,38 +417,7 @@ const FileList: React.FC = () => {
     }
   }
 
-  // Add this function before the return statement
-  const getKeyColor = (keyString: string) => {
-    // If key is undefined or empty, return default color
-    if (!keyString) {
-      return theme.palette.text.secondary;
-    }
-    
-    // Parse the key string - number part is the scale, letter part is the mode
-    const scaleNumber = parseInt(keyString.match(/\d+/)?.[0] || '0', 10);
-    const mode = keyString.slice(-1).toUpperCase(); // A for minor, B for major
-    
-    // Color palette for musical keys (based on the circle of fifths)
-    const keyColors = {
-      1: '#C40233', // C (Red)
-      2: '#FFD700', // D (Yellow)
-      3: '#008000', // E (Green)
-      4: '#40E0D0', // F (Turquoise)
-      5: '#0000FF', // G (Blue)
-      6: '#8A2BE2', // A (Purple)
-      7: '#FF1493', // B (Pink)
-      8: '#FF8C00', // C# (Orange)
-      9: '#7CFC00', // D# (Lime)
-      10: '#00FFFF', // F# (Cyan)
-      11: '#FF00FF', // G# (Magenta)
-      12: '#FF69B4', // A# (Light Pink)
-      // Default color if scale is not recognized
-      0: theme.palette.text.secondary
-    };
-    
-    // Return the color for the key scale, or default if not found
-    return keyColors[scaleNumber] || keyColors[0];
-  }
+
 
   // Add a function to toggle sort direction
   const toggleSortDirection = (sortType: 'primary' | 'secondary') => {
@@ -519,6 +485,12 @@ const FileList: React.FC = () => {
     }
   }, [filteredFiles, currentFileId, viewMode]);
 
+  // Get paginated data
+  const paginatedFiles = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    return filteredFiles.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredFiles, page, rowsPerPage]);
+
   if (audioFiles.length === 0) {
     return (
       <Box sx={{ p: 3 }}>
@@ -527,32 +499,7 @@ const FileList: React.FC = () => {
     )
   }
 
-  // Function to get visible items with proper wrapping
-  const getVisibleItems = () => {
-    const items = []
-    const totalFiles = filteredFiles.length
-    
-    if (totalFiles === 0) return items
-    
-    const currentIndex = currentFileInfo.index
-    if (currentIndex === -1) return items
-    
-    const visibleCount = Math.min(21, totalFiles) // Current + 10 on each side, or fewer if not enough files
-    
-    for (let i = 0; i < visibleCount; i++) {
-      const offset = i - Math.min(10, Math.floor(visibleCount / 2)) // Center the current item
-      let index = (currentIndex + offset) % totalFiles
-      if (index < 0) index += totalFiles // Handle negative indices
-      
-      items.push({
-        file: filteredFiles[index],
-        offset,
-        fileId: filteredFiles[index].id
-      })
-    }
-    
-    return items
-  }
+
 
   // Add sort indicators to the Filter Status section
   {(primarySort !== 'key' || secondarySort !== 'tempo' || 
@@ -584,8 +531,8 @@ const FileList: React.FC = () => {
         fullWidth
         variant="outlined"
         placeholder="Search by title, artist or album..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
+        value={searchInput}
+        onChange={(e) => setSearchInput(e.target.value)}
         sx={{ 
           mb: 2,
           '& .MuiOutlinedInput-root': {
@@ -617,7 +564,7 @@ const FileList: React.FC = () => {
               <Search color="inherit" />
             </InputAdornment>
           ),
-          endAdornment: searchQuery && (
+          endAdornment: searchInput && (
             <InputAdornment position="end">
               <IconButton 
                 size="small" 
@@ -847,7 +794,7 @@ const FileList: React.FC = () => {
       </Collapse>
       
       {/* Filter Status */}
-      {(searchQuery || tempoRange[0] > tempoLimits.min || tempoRange[1] < tempoLimits.max || !includeFilesWithoutTempo) && (
+      {(searchInput || tempoRange[0] > tempoLimits.min || tempoRange[1] < tempoLimits.max || !includeFilesWithoutTempo) && (
         <Box sx={{ 
           display: 'flex', 
           flexWrap: 'wrap', 
@@ -856,9 +803,9 @@ const FileList: React.FC = () => {
           width: '100%',
           justifyContent: 'flex-start'
         }}>
-          {searchQuery && (
+          {searchInput && (
             <Chip 
-              label={`Search: "${searchQuery}"`}
+              label={`Search: "${searchInput}"`}
               onDelete={handleClearSearch}
               size="small"
             />
@@ -890,485 +837,28 @@ const FileList: React.FC = () => {
       ) : (
         <>
           {viewMode === 'carousel' ? (
-            <Box sx={{ 
-              width: '100%',
-              height: "600px",
-              my: 2,
-              perspective: '1200px'
-            }}>
-              <IconButton 
-                onClick={handlePrevious} 
-                size="large"
-                sx={{ 
-                  position: 'absolute', 
-                  left: 0, 
-                  top: '50%', 
-                  transform: 'translateY(-50%)',
-                  zIndex: 10,
-                  backgroundColor: "#fff",
-                  "&:hover": {
-                    backgroundColor: "#ffffff",
-                    opacity: 0.8
-                  }
-                }}
-              >
-                <KeyboardArrowLeft fontSize="large" />
-              </IconButton>
-              
-              <Box sx={{ 
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                {getVisibleItems().map(({ file, offset, fileId }) => (
-                  <Box 
-                    key={fileId}
-                    onClick={() => offset !== 0 && handleFileClick(fileId)}
-                    sx={{ 
-                      position: 'absolute',
-                      width: "max-content",
-                      height: "max-content",
-                      transform: `
-                        translateX(${offset * 280}px) 
-                        translateZ(${-Math.abs(offset) * 50}px)
-                        scale(${1 - Math.abs(offset) * 0.05})
-                      `,
-                      zIndex: 10 - Math.abs(offset),
-                      transition: theme.transitions.create(
-                        ['transform', 'opacity', 'width', 'height'], 
-                        { duration: theme.transitions.duration.standard }
-                      ),
-                      display: 'flex',
-                      overflowY: 'visible',
-                      flexDirection: 'column',
-                      boxShadow: offset === 0 ? 8 : 2,
-                      backgroundColor: theme.palette.background.paper,
-                      cursor: offset !== 0 ? 'pointer' : 'default',
-                      '&:hover': {
-                        opacity: offset !== 0 ? 0.9 : 1,
-                        transform: offset !== 0 ? `
-                          translateX(${offset * 280}px) 
-                          translateZ(${-Math.abs(offset) * 50}px)
-                          scale(${1 - Math.abs(offset) * 0.03})
-                        ` : `
-                          translateX(${offset * 280}px) 
-                          translateZ(${-Math.abs(offset) * 50}px)
-                          scale(${1 - Math.abs(offset) * 0.05})
-                        `
-                      }
-                    }}
-                  >
-                    {/* Album Art - Square Container */}
-                    <Box 
-                      sx={{ 
-                        width: offset === 0 ? 300 : 200,
-                        height: offset === 0 ? 300 : 200,
-                        paddingTop: '100%', // This makes it square (1:1 aspect ratio)
-                        position: 'relative',
-                        backgroundColor: theme.palette.grey[100]
-                      }}
-                    >
-                      {file?.metadata?.spotifyAlbumArt ? (
-                        <img 
-                          src={file.metadata.spotifyAlbumArt} 
-                          alt={file.metadata?.title || file.name}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
-                          }}
-                        />
-                      ) : file?.metadata?.picture ? (
-                        <img 
-                          src={file.metadata.picture} 
-                          alt={file.metadata?.title || file.name}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
-                          }}
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: theme.palette.grey[200],
-                            color: theme.palette.text.secondary
-                          }}
-                        >
-                          <Typography variant="body2">No Cover</Typography>
-                        </Box>
-                      )}
-                    </Box>
-                    
-                    {/* Audio Information */}
-                    <Box sx={{ 
-                      flexGrow: 0,
-                      display: offset === 0 ? 'flex' : 'none',
-                      width: offset === 0 ? 300 : 200,
-                      height: "max-content",
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                      position: 'absolute',
-                      marginTop: "300px",
-                      p: offset === 0 ? 2 : 1,
-                      backgroundColor: theme.palette.background.default,
-                      color: theme.palette.text.primary
-                    }}>
-                      <Typography 
-                        variant={offset === 0 ? "body1" : "body2"} 
-                        component="div"
-                        noWrap
-                        sx={{ 
-                          textAlign: 'center',
-                          fontWeight: offset === 0 ? 'bold' : 'normal',
-                          color:"text.primary"
-                        }}
-                      >
-                        {file?.metadata?.title || file?.name || 'Unknown file'}
-                      </Typography>
-                      <Box sx={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        gap: 1
-                      }}>
-                      {offset === 0 && (
-                        <>
-                          <Typography 
-                            variant="body2" 
-                            color="text.secondary" 
-                            sx={{ 
-                              textAlign: 'center',
-                              mt: 0.5
-                            }}
-                          >
-                            {file?.metadata?.artist || 'Unknown artist'}
-                          </Typography>
-                          
-                          {/* Display tempo if available */}
-                          {file?.metadata?.tempo && 
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary" 
-                              sx={{ 
-                                fontWeight: offset === 0 ? 'bold' : 'normal',
-                                textAlign: 'center',
-                                mt: 0.5
-                              }}
-                            >
-                              {file?.metadata?.tempo} BPM
-                            </Typography>
-                          }
-                          
-                          {/* Display musical key if available */}
-                          {file?.metadata?.key !== undefined && 
-                            <Typography 
-                              variant="caption" 
-                              sx={{ 
-                                fontWeight: offset === 0 ? 'bold' : 'normal',
-                                textAlign: 'center',
-                                mt: 0.5,
-                                color: getKeyColor(file.metadata.key),
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: `${getKeyColor(file.metadata.key)}15`,
-                                border: `1px solid ${getKeyColor(file.metadata.key)}30`
-                              }}
-                            >
-                              {file.metadata.key}
-                            </Typography>
-                          }
-                        </>
-                      )}
-                      </Box>
-                      
-                      {/* Spotify button for current item */}
-                      {offset === 0 && (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<MusicNote />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fetchSpotifyMetadata(file);
-                          }}
-                          disabled={!spotifyTokens}
-                          sx={{ 
-                            mt: 2,
-                            fontSize: '0.75rem',
-                            textTransform: 'none',
-                            borderRadius: '16px',
-                            borderColor: theme.palette.primary.main,
-                            color: theme.palette.primary.main,
-                            '&:hover': {
-                              backgroundColor: `${theme.palette.primary.main}10`
-                            }
-                          }}
-                        >
-                          {file?.metadata?.spotifyId ? 'Update from Spotify' : 'Find on Spotify'}
-                        </Button>
-                      )}
-                      
-                      {/* Display Spotify link if available */}
-                      {offset === 0 && file?.metadata?.spotifyUrl && (
-                        <Button
-                          variant="text"
-                          size="small"
-                          href={file.metadata.spotifyUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          sx={{ 
-                            mt: 1,
-                            fontSize: '0.75rem',
-                            textTransform: 'none',
-                            color: '#1DB954', // Spotify green
-                          }}
-                        >
-                          Open in Spotify
-                        </Button>
-                      )}
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-              
-              <IconButton 
-                onClick={handleNext} 
-                size="large"
-                sx={{ 
-                  position: 'absolute', 
-                  right: 0, 
-                  top: '50%', 
-                  transform: 'translateY(-50%)',
-                  zIndex: 10,
-                  backgroundColor: "#fff",
-                  "&:hover": {
-                    backgroundColor: "#ffffff",
-                    opacity: 0.8
-                  }
-                }}
-              >
-                <KeyboardArrowRight fontSize="large" />
-              </IconButton>
-            </Box>
+            <FileCarousel 
+              filteredFiles={filteredFiles}
+              currentFileId={currentFileId}
+              handlePrevious={handlePrevious}
+              handleNext={handleNext}
+              handleFileClick={handleFileClick}
+              fetchSpotifyMetadata={fetchSpotifyMetadata}
+              spotifyTokens={spotifyTokens}
+            />
           ) : (
-            <TableContainer 
-              component={Paper} 
-              sx={{ 
-                maxHeight: 600,
-                my: 0,
-                boxShadow: theme.shadows[2],
-                borderRadius: theme.shape.borderRadius,
-                '&::-webkit-scrollbar': {
-                  width: '8px',
-                  height: '8px',
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: theme.palette.divider,
-                  borderRadius: '4px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: theme.palette.background.paper,
-                }
-              }}
-            >
-              <Table stickyHeader size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', width: '40px' }}>#</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', width: '50px' }}>Cover</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Title</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Artist</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>
-                      <Tooltip title="Musical Key">
-                        <span>Key</span>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>
-                      <Tooltip title="Tempo (Beats Per Minute)">
-                        <span>BPM</span>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', width: '100px' }}>Duration</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredFiles.map((file, index) => {
-                    const isSelected = file.id === currentFileId;
-                    
-                    // Format duration (if available)
-                    const formatDuration = (seconds: number) => {
-                      if (!seconds) return '--:--';
-                      const mins = Math.floor(seconds / 60);
-                      const secs = Math.floor(seconds % 60);
-                      return `${mins}:${secs.toString().padStart(2, '0')}`;
-                    };
-                    
-                    return (
-                      <TableRow 
-                        key={file.id}
-                        hover
-                        selected={isSelected}
-                        onClick={() => handleTableRowClick(file.id, file)}
-                        ref={isSelected ? selectedRowRef : null}
-                        sx={{ 
-                          cursor: 'pointer',
-                          backgroundColor: isSelected ? `${theme.palette.primary.main}15` : 'inherit',
-                          '&:hover': {
-                            backgroundColor: isSelected 
-                              ? `${theme.palette.primary.main}25` 
-                              : theme.palette.action.hover
-                          }
-                        }}
-                      >
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>
-                          <Box 
-                            sx={{ 
-                              width: 40, 
-                              height: 40, 
-                              borderRadius: '4px',
-                              overflow: 'hidden',
-                              backgroundColor: theme.palette.grey[200]
-                            }}
-                          >
-                            {file?.metadata?.spotifyAlbumArt ? (
-                              <img 
-                                src={file.metadata.spotifyAlbumArt} 
-                                alt=""
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              />
-                            ) : file?.metadata?.picture ? (
-                              <img 
-                                src={file.metadata.picture} 
-                                alt=""
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              />
-                            ) : (
-                              <MusicNote 
-                                sx={{ 
-                                  width: '100%', 
-                                  height: '100%', 
-                                  p: 1, 
-                                  color: theme.palette.text.secondary 
-                                }} 
-                              />
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography 
-                            variant="body2" 
-                            noWrap 
-                            sx={{ 
-                              fontWeight: isSelected ? 'bold' : 'normal',
-                              maxWidth: 200
-                            }}
-                          >
-                            {file?.metadata?.title || file?.name || 'Unknown'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography 
-                            variant="body2" 
-                            color="text.secondary" 
-                            noWrap
-                            sx={{ maxWidth: 150 }}
-                          >
-                            {file?.metadata?.artist || 'Unknown artist'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          {file?.metadata?.key !== undefined ? (
-                            <Typography 
-                              variant="body2" 
-                              sx={{ 
-                                color: getKeyColor(file.metadata.key),
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: `${getKeyColor(file.metadata.key)}15`,
-                                border: `1px solid ${getKeyColor(file.metadata.key)}30`,
-                                display: 'inline-block',
-                                textAlign: 'center'
-                              }}
-                            >
-                              {file.metadata.key}
-                            </Typography>
-                          ) : (
-                            <Typography variant="body2" color="text.disabled">--</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {file?.metadata?.tempo ? (
-                            <Typography variant="body2">{Math.round(file.metadata.tempo)}</Typography>
-                          ) : (
-                            <Typography variant="body2" color="text.disabled">--</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {formatDuration(file?.metadata?.duration)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Tooltip title="Find on Spotify">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                fetchSpotifyMetadata(file);
-                              }}
-                              disabled={!spotifyTokens}
-                              sx={{ color: theme.palette.primary.main }}
-                            >
-                              <MusicNote fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          {file?.metadata?.spotifyUrl && (
-                            <Tooltip title="Open in Spotify">
-                              <IconButton
-                                size="small"
-                                component="a"
-                                href={file.metadata.spotifyUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                sx={{ color: '#1DB954' }} // Spotify green
-                              >
-                                <OpenInNew fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <TrackTable
+              filteredFiles={filteredFiles}
+              currentFileId={currentFileId}
+              handleTableRowClick={handleTableRowClick}
+              fetchSpotifyMetadata={fetchSpotifyMetadata}
+              spotifyTokens={spotifyTokens}
+            />
           )}
           
           <Typography sx={{ mt: 2 }} variant="body2" >
             {filteredFiles.length > 0 ? `${currentFileInfo.index + 1} of ${filteredFiles.length}` : 'No results'}
-            {(searchQuery || tempoRange[0] > tempoLimits.min || tempoRange[1] < tempoLimits.max) && 
+            {(searchInput || tempoRange[0] > tempoLimits.min || tempoRange[1] < tempoLimits.max) && 
               filteredFiles.length > 0 && ` (filtered from ${audioFiles.length})`}
           </Typography>
         </>

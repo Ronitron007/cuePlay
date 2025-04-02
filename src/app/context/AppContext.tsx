@@ -3,17 +3,29 @@
 import React, { createContext, useState, useContext, useEffect, useReducer } from 'react'
 import { getAudioFiles, saveAudioFiles } from './utils/audioStorage'
 
-// Define Spotify token type
 type SpotifyTokens = {
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
 } | null;
 
-// Define the context type
+export type AudioFile = {
+  id: string;
+  name: string;
+  metadata?: {
+    title?: string;
+    artist?: string;
+    album?: string;
+    tempo?: number;
+    key?: string;
+    // ... other metadata properties
+  };
+  // ... other properties
+};
+
 interface AppContextType {
   audioFiles: any[];
-  setAudioFiles: (files: any[]) => void;
+  setAudioFiles: React.Dispatch<React.SetStateAction<AudioFile[]>>
   spotifyTokens: SpotifyTokens;
   setSpotifyTokens: (tokens: SpotifyTokens) => void;
   clearSpotifyTokens: () => void;
@@ -73,12 +85,6 @@ export const useAppContext = () => {
   return context
 }
 
-// Add these types to your existing types
-type SpotifyTokens = {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-} | null;
 
 // Update your AppState interface to include Spotify tokens
 interface AppState {
