@@ -9,16 +9,30 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "better-cue-parser": "^0.3.1",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.0.1",
+    "@mui/material": "^7.0.1",
+    "@types/jsmediatags": "^3.9.6",
+    "better-cue-parser": "file://Users/rohanmalik/Projects/cue-parser",
     "cue-parser": "^0.3.0",
+    "fuse.js": "^7.1.0",
+    "jsmediatags": "^3.9.7",
+    "music-metadata": "^11.0.2",
     "next": "15.0.3",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "string-similarity": "^4.0.4",
+    "uuid": "^11.1.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/xml2js": "^0.4.14",
     "eslint": "^8",
     "eslint-config-next": "15.0.3",
     "postcss": "^8",
