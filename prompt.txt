@@ -1,2 +1,4 @@
-Fix the handlePrevious and handleNext functions in the file and ad appropriate ref to the table row in the TrackTable component
-/Users/rohanmalik/Projects/cuePlay/src/app/components/FileList.tsx
+Given the file below; improve its accessibility,
+1. Adds missing ARIA attributes (aria-label, aria-hidden, etc.).
+2. Suggests or automatically converts divs/spans to semantic HTML (button, nav, header, etc.).
+ File Location /Users/rohanmalik/Projects/cuePlay/src/app/components/TrackTable.tsx

@@ -65,31 +65,35 @@ const TrackTable: React.FC<TrackTableProps> = ({
           backgroundColor: theme.palette.background.paper,
         }
       }}
+      aria-label="Music tracks table"
     >
-      <Table stickyHeader size="small">
+      <Table stickyHeader size="small" role="grid">
+        <caption className="sr-only">List of audio tracks with metadata</caption>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ fontWeight: 'bold', width: '40px' }}>#</TableCell>
-            <TableCell sx={{ fontWeight: 'bold', width: '50px' }}>Cover</TableCell>
-            <TableCell sx={{ fontWeight: 'bold' }}>Title</TableCell>
-            <TableCell sx={{ fontWeight: 'bold' }}>Artist</TableCell>
-            <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>
+            <TableCell sx={{ fontWeight: 'bold', width: '40px' }} scope="col">#</TableCell>
+            <TableCell sx={{ fontWeight: 'bold', width: '50px' }} scope="col">Cover</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }} scope="col">Title</TableCell>
+            <TableCell sx={{ fontWeight: 'bold' }} scope="col">Artist</TableCell>
+            <TableCell sx={{ fontWeight: 'bold', width: '80px' }} scope="col">
               <Tooltip title="Musical Key">
-                <span>Key</span>
+                <span id="column-key">Key</span>
               </Tooltip>
             </TableCell>
-            <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>
+            <TableCell sx={{ fontWeight: 'bold', width: '80px' }} scope="col">
               <Tooltip title="Tempo (Beats Per Minute)">
-                <span>BPM</span>
+                <span id="column-bpm">BPM</span>
               </Tooltip>
             </TableCell>
-            <TableCell sx={{ fontWeight: 'bold', width: '100px' }}>Duration</TableCell>
-            <TableCell sx={{ fontWeight: 'bold', width: '80px' }}>Actions</TableCell>
+            <TableCell sx={{ fontWeight: 'bold', width: '100px' }} scope="col">Duration</TableCell>
+            <TableCell sx={{ fontWeight: 'bold', width: '80px' }} scope="col">Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {filteredFiles.map((file, index) => {
             const isSelected = file.id === currentFileId
+            const trackName = file?.metadata?.title || file?.name || 'Unknown'
+            const artistName = file?.metadata?.artist || 'Unknown artist'
             
             return (
               <TableRow 
@@ -107,28 +111,33 @@ const TrackTable: React.FC<TrackTableProps> = ({
                       : theme.palette.action.hover
                   }
                 }}
+                aria-selected={isSelected}
+                role="row"
+                aria-label={`Track: ${trackName} by ${artistName}`}
               >
-                <TableCell>{index + 1}</TableCell>
-                <TableCell>
+                <TableCell role="gridcell">{index + 1}</TableCell>
+                <TableCell role="gridcell">
                   <Box 
+                    component="figure"
                     sx={{ 
                       width: 40, 
                       height: 40, 
                       borderRadius: '4px',
                       overflow: 'hidden',
-                      backgroundColor: theme.palette.grey[200]
+                      backgroundColor: theme.palette.grey[200],
+                      margin: 0
                     }}
                   >
                     {file?.metadata?.spotifyAlbumArt ? (
                       <img 
                         src={file.metadata.spotifyAlbumArt} 
-                        alt=""
+                        alt={`Album cover for ${trackName}`}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                     ) : file?.metadata?.picture ? (
                       <img 
                         src={file.metadata.picture} 
-                        alt=""
+                        alt={`Album cover for ${trackName}`}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                     ) : (
@@ -139,12 +148,14 @@ const TrackTable: React.FC<TrackTableProps> = ({
                           p: 1, 
                           color: theme.palette.text.secondary 
                         }} 
+                        aria-hidden="true"
                       />
                     )}
                   </Box>
                 </TableCell>
-                <TableCell>
+                <TableCell role="gridcell">
                   <Typography 
+                    component="h3"
                     variant="body2" 
                     noWrap 
                     sx={{ 
@@ -152,22 +163,23 @@ const TrackTable: React.FC<TrackTableProps> = ({
                       maxWidth: 200
                     }}
                   >
-                    {file?.metadata?.title || file?.name || 'Unknown'}
+                    {trackName}
                   </Typography>
                 </TableCell>
-                <TableCell>
+                <TableCell role="gridcell">
                   <Typography 
                     variant="body2" 
                     color="text.secondary" 
                     noWrap
                     sx={{ maxWidth: 150 }}
                   >
-                    {file?.metadata?.artist || 'Unknown artist'}
+                    {artistName}
                   </Typography>
                 </TableCell>
-                <TableCell>
+                <TableCell role="gridcell" aria-labelledby="column-key">
                   {file?.metadata?.key !== undefined ? (
                     <Typography 
+                      component="span"
                       variant="body2" 
                       sx={{ 
                         color: theme.palette.primary.main,
@@ -185,31 +197,34 @@ const TrackTable: React.FC<TrackTableProps> = ({
                     <Typography variant="body2" color="text.disabled">--</Typography>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell role="gridcell" aria-labelledby="column-bpm">
                   {file?.metadata?.tempo ? (
                     <Typography variant="body2">{Math.round(file.metadata.tempo)}</Typography>
                   ) : (
                     <Typography variant="body2" color="text.disabled">--</Typography>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell role="gridcell">
                   <Typography variant="body2">
                     {formatDuration(file?.metadata?.duration)}
                   </Typography>
                 </TableCell>
-                <TableCell>
+                <TableCell role="gridcell">
                   <Tooltip title="Find on Spotify">
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        fetchSpotifyMetadata(file);
-                      }}
-                      disabled={!spotifyTokens}
-                      sx={{ color: theme.palette.primary.main }}
-                    >
-                      <MusicNote fontSize="small" />
-                    </IconButton>
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fetchSpotifyMetadata(file);
+                        }}
+                        disabled={!spotifyTokens}
+                        sx={{ color: theme.palette.primary.main }}
+                        aria-label={`Search for "${trackName}" on Spotify`}
+                      >
+                        <MusicNote fontSize="small" aria-hidden="true" />
+                      </IconButton>
+                    </span>
                   </Tooltip>
                   {file?.metadata?.spotifyUrl && (
                     <Tooltip title="Open in Spotify">
@@ -221,8 +236,9 @@ const TrackTable: React.FC<TrackTableProps> = ({
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         sx={{ color: '#1DB954' }} 
+                        aria-label={`Open "${trackName}" in Spotify`}
                       >
-                        <OpenInNew fontSize="small" />
+                        <OpenInNew fontSize="small" aria-hidden="true" />
                       </IconButton>
                     </Tooltip>
                   )}
