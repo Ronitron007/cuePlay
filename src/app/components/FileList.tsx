@@ -504,6 +504,7 @@ const FileList: React.FC = () => {
               onChange={() => setViewMode(prev => prev === 'carousel' ? 'table' : 'carousel')}
               color="primary"
               size="small"
+              inputProps={{ 'aria-label': 'Switch to table view' }}
             />
           }
           label={

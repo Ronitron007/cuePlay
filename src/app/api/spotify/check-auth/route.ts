@@ -5,7 +5,6 @@ export async function GET() {
   const cookieStore = cookies()
   const accessToken = cookieStore.get('spotify_access_token')?.value
   const refreshToken = cookieStore.get('spotify_refresh_token')?.value
-  const expiresAt = cookieStore.get('spotify_expires_at')?.value
 
   if (accessToken && refreshToken && expiresAt) {
     // Check if token is expired
@@ -72,12 +71,7 @@ async function refreshAccessToken(refreshToken: string) {
     path: '/'
   })
   
-  cookies().set('spotify_expires_at', expiresAt.toString(), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: data.expires_in,
-    path: '/'
-  })
+ 
   
   // If a new refresh token is provided, update it
   if (data.refresh_token) {

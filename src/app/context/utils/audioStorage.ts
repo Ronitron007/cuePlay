@@ -1,5 +1,5 @@
 // src/utils/audioStorage.ts
-export interface AudioMetadata {
+interface AudioMetadata {
     name: string;
     path: string;
     type: string;
@@ -18,7 +18,7 @@ export interface AudioMetadata {
   const STORE_NAME = 'audioFiles';
   const DB_VERSION = 1;
   
-  export const initDB = (): Promise<IDBDatabase> => {
+  const initDB = (): Promise<IDBDatabase> => {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       

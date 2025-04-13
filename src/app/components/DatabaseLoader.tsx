@@ -98,7 +98,7 @@ const DatabaseLoader: React.FC = () => {
 
   return (
     <Box sx={{ mb: 4, p: 3, border: '1px dashed', borderRadius: 2, borderColor: 'divider' }}>
-      <Typography variant="h6" gutterBottom>
+      <Typography variant="h2" gutterBottom sx={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
         Import from XML
       </Typography>
       
@@ -109,6 +109,7 @@ const DatabaseLoader: React.FC = () => {
       <Button
         variant="contained"
         component="label"
+        role="button"
         startIcon={loading ? <CircularProgress size={20} /> : <Storage />}
         disabled={loading}
         sx={{ mb: 2 }}
@@ -119,6 +120,7 @@ const DatabaseLoader: React.FC = () => {
           accept=".xml"
           hidden
           onChange={handleFileUpload}
+          aria-label="Upload XML file"
         />
       </Button>
       

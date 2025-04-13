@@ -16,7 +16,7 @@ import {
 } from '@mui/icons-material'
 
 // Define types
-export type FileWithMetadata = {
+type FileWithMetadata = {
   id: string;
   name: string;
   metadata?: {
@@ -34,7 +34,7 @@ export type FileWithMetadata = {
   }
 }
 
-export interface FileCarouselProps {
+interface FileCarouselProps {
   filteredFiles: FileWithMetadata[];
   currentFileId: string | null;
   handlePrevious: () => void;
@@ -134,7 +134,8 @@ const FileCarousel: React.FC<FileCarouselProps> = ({
       perspective: '1200px'
     }}>
       <IconButton 
-        onClick={handlePrevious} 
+        onClick={handlePrevious}
+        aria-label="Previous item" 
         size="large"
         sx={{ 
           position: 'absolute', 
@@ -375,7 +376,7 @@ const FileCarousel: React.FC<FileCarouselProps> = ({
                     mt: 1,
                     fontSize: '0.75rem',
                     textTransform: 'none',
-                    color: '#1DB954', // Spotify green
+                    color: '#0E5F2A', // Darker Spotify green for better contrast
                   }}
                 >
                   Open in Spotify
@@ -387,7 +388,8 @@ const FileCarousel: React.FC<FileCarouselProps> = ({
       </Box>
       
       <IconButton 
-        onClick={handleNext} 
+        onClick={handleNext}
+        aria-label="Next item" 
         size="large"
         sx={{ 
           position: 'absolute', 
